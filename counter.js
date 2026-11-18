@@ -35,7 +35,7 @@ class Counter{
     const knee=angle(kp[h],kp[k],kp[a]);const v=[kp[s][0]-kp[h][0],kp[s][1]-kp[h][1]];
     const lean=Math.atan2(Math.abs(v[0]),-v[1])*180/Math.PI;
     const kd=[13,14,15,16].every(i=>conf[i]>0.25)?Math.abs(kp[13][0]-kp[14][0])/(Math.abs(kp[15][0]-kp[16][0])+1e-6):NaN;
-    const delta=this.DELTA*base;let event=null;
+    this.live={state:this.state,lean,kd,view:this.view,r,knee};const delta=this.DELTA*base;let event=null;
     if(this.state==='up'){
       this.peak=this.peak===null?fs:Math.max(this.peak,fs);
       if(gate&&fs<this.peak-delta&&fs<this.LOW*base){

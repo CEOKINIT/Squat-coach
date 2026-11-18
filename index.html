@@ -35,7 +35,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 <div class="hud"><b id="n">0</b><span id="st">준비 중</span></div><div class="cd" id="cd" hidden></div><div class="coach" id="coach">아이 전신이 화면에 들어오게 세워 주세요.</div></div>
 <div class="start" id="start"><h2 style="margin:0">카메라로 동작 세기</h2>
 <p>휴대폰을 고정해 아이 전신이 보이게 세워 주세요. 영상은 기기 밖으로 나가지 않습니다.</p><button id="go">카메라 시작</button><p id="err" style="color:var(--warn)"></p></div></div>
-<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label>기기 음성 <select id="dv"><option value="">자동</option></select></label><label><input type="checkbox" id="coachvox"> 코칭도 읽기</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
+<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label>기기 음성 <select id="dv"><option value="">자동</option></select></label><label><input type="checkbox" id="coachvox" checked> 자세 코칭 말하기</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
 <div class="note">참고용 시제품입니다. 코칭 문구의 기준은 검증 전입니다.</div>
 <script>if("serviceWorker"in navigator&&!self.crossOriginIsolated){navigator.serviceWorker.register("coi-sw.js").then(r=>{if(!navigator.serviceWorker.controller)location.reload()}).catch(()=>{})}</script>
 <script src="ort.wasm.min.js"></script><script src="counter.js"></script>
@@ -44,9 +44,17 @@ const $=id=>document.getElementById(id);let S=480;const CHEER_EVERY=10;
 let phase='play',mode='squat',facing='user',ctr,stream,sess,running=false,sound=true,actx;
 const E=[[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[0,5],[0,6]];
 const v=$('v'),c=$('c'),g=c.getContext('2d'),w=document.createElement('canvas');let wg,buf;
+let lastAct=0,lostSince=null,waiting=false,lastWait=-99,lastCue=-99,cueN=0,IDLE_SEC=12,LOST_SEC=3;
+function resetWatch(){lastAct=performance.now()/1000;lostSince=null;waiting=false;lastWait=-99;lastCue=-99;cueN=0}
+function watch(t,present){if(!present){if(lostSince==null)lostSince=t}else lostSince=null;
+ const lost=lostSince!=null&&t-lostSince>=LOST_SEC,idle=present&&t-lastAct>=IDLE_SEC;
+ if((lost||idle)&&(!waiting||t-lastWait>=20)&&!cheering){waiting=true;lastWait=t;$('coach').textContent=WAIT;playCheer('wait',WAIT)}}
+function liveCue(t){if(mode!=='squat'||cheering||waiting||!ctr.live)return;const L=ctr.live;let msg=null;
+ if(L.state==='down'){if(L.view==='side'&&L.lean>50)msg='가슴을 세워요';else if(L.view==='front'&&L.kd<0.75)msg='무릎이 안으로 모여요. 발끝 방향으로!'}
+ cueN=msg?cueN+1:0;if(msg&&cueN>=3&&t-lastCue>6){let busy=false;try{busy=speechSynthesis.speaking}catch(e){}if(busy)return;lastCue=t;cueN=0;$('coach').textContent=msg;speak(msg)}}
 const GREET='안녕~ 또 만났네! 오늘도 운동을 시작해볼까?';
 function intro(){phase='intro';$('coach').textContent=GREET;let done=false;const go=()=>{if(done)return;done=true;countdown()};vsay('greet',GREET,go);setTimeout(go,10000)}
-function countdown(){let n=3;$('cd').hidden=false;const t=()=>{if(n>0){$('cd').textContent=n;n--;setTimeout(t,800)}else{$('cd').textContent='시작!';vsay('go','시작!');setTimeout(()=>{$('cd').hidden=true;newCtr();phase='play';$('coach').textContent=mode==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'},800)}};t()}
+function countdown(){let n=3;$('cd').hidden=false;const t=()=>{if(n>0){$('cd').textContent=n;n--;setTimeout(t,800)}else{$('cd').textContent='시작!';vsay('go','시작!');setTimeout(()=>{$('cd').hidden=true;newCtr();resetWatch();phase='play';$('coach').textContent=mode==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'},800)}};t()}
 function newCtr(){ctr=new KINIT.Counter(mode);$('n').textContent=0}
 function setMode(m){mode=m;$('m1').setAttribute('aria-pressed',m==='squat');$('m2').setAttribute('aria-pressed',m!=='squat');if(m!=='squat')mode='hang_tuck';newCtr();$('coach').textContent=m==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'}
 $('m1').onclick=()=>setMode('squat');$('m2').onclick=()=>setMode('hang_tuck');
@@ -67,16 +75,22 @@ function beep(){if(!sound)return;try{actx=actx||new AudioContext();const o=actx.
 const ONES=['','하나','둘','셋','넷','다섯','여섯','일곱','여덟','아홉'],TENS=['','열','스물','서른','마흔','쉰','예순','일흔','여든','아흔'];
 function nat(n){if(n<1||n>99)return String(n);return TENS[Math.floor(n/10)]+ONES[n%10]}
 function natCnt(n){if(n<1||n>99)return String(n);let t=nat(n);if(n===20)return '스무';return t.replace(/하나$/,'한').replace(/둘$/,'두').replace(/셋$/,'세').replace(/넷$/,'네')}
+const WAIT='선생님이 기다리고 있어. 같이 운동하자~.',BACK='역시 잘할 줄 알았어.';
+const CH={
+ teacher:[n=>'우와, 벌써 '+natCnt(n)+' 개나 했어요! 정말 잘했어요!',n=>'대단해요! 벌써 '+natCnt(n)+' 개나 했어요! 정말 멋져요!',n=>'와, 벌써 '+natCnt(n)+' 개예요! 엄청나요! 진짜 대단해요!',n=>natCnt(n)+' 개라니! 믿을 수가 없어요! 최고예요!',n=>'와, '+natCnt(n)+' 개! 우리 친구는 운동 챔피언이에요!'],
+ soldier:[n=>'좋았다! 벌써 '+natCnt(n)+' 개나 해냈다! 대단하다!',n=>'훌륭하다! 벌써 '+natCnt(n)+' 개를 해냈다! 정말 강하다!',n=>natCnt(n)+' 개! 엄청난 체력이다! 최고의 병사다!',n=>natCnt(n)+' 개! 믿을 수 없는 괴력이다! 대단하다!',n=>natCnt(n)+' 개! 너는 진정한 영웅이다!'],
+ child:[n=>'우와, 벌써 '+natCnt(n)+' 개나 했어!',n=>'우와! 벌써 '+natCnt(n)+' 개나 했어! 진짜 대단해!',n=>natCnt(n)+' 개! 너무 멋져! 최고야!',n=>natCnt(n)+' 개라니! 믿을 수 없어! 짱이야!',n=>natCnt(n)+' 개! 넌 운동 챔피언이야!']};
+const cheerOf=(k,n)=>{const a=CH[k];return a[Math.min(Math.floor(n/10),5)-1](n)};
 const VOICE={
- teacher:{pitch:1.15,rate:.92,count:n=>nat(n),cheer:n=>'우와, 벌써 '+natCnt(n)+' 개나 했어요! 정말 잘했어요!',hello:'안녕! 선생님이랑 같이 운동해요!'},
- soldier:{pitch:.85,rate:1.08,count:n=>nat(n)+'!',cheer:n=>'좋았다! 벌써 '+natCnt(n)+' 개나 해냈다! 대단하다!',hello:'좋아! 지금부터 훈련을 시작한다!'},
- child:{pitch:1.45,rate:1.05,count:n=>nat(n),cheer:n=>'우와, 벌써 '+natCnt(n)+' 개나 했어!',hello:'안녕! 나랑 같이 운동하자!'}};
+ teacher:{pitch:1.15,rate:.92,count:n=>nat(n),cheer:n=>cheerOf('teacher',n),hello:'안녕! 선생님이랑 같이 운동해요!'},
+ soldier:{pitch:.85,rate:1.08,count:n=>nat(n)+'!',cheer:n=>cheerOf('soldier',n),hello:'좋아! 지금부터 훈련을 시작한다!'},
+ child:{pitch:1.45,rate:1.05,count:n=>nat(n),cheer:n=>cheerOf('child',n),hello:'안녕! 나랑 같이 운동하자!'}};
 let cur=null;const AUD={};
 async function probe(){const k=$('vox').value;if(AUD[k]!==undefined)return;AUD[k]=false;try{const r=await fetch('audio/'+k+'/greet.mp3',{method:'HEAD'});AUD[k]=r.ok}catch(e){}}
 let cheering=false,pend=null,cheerTimer=0;
-function endCheer(){if(!cheering)return;cheering=false;clearTimeout(cheerTimer);if(pend){const q=pend;pend=null;vsay(q.key,q.text)}}
+function endCheer(){if(!cheering)return;cheering=false;clearTimeout(cheerTimer);if(pend){const q=pend;pend=null;vsay(q.key,q.text,q.coach?()=>speak(q.coach):null)}}
 function playCheer(key,text){cheering=true;pend=null;clearTimeout(cheerTimer);cheerTimer=setTimeout(endCheer,9000);vsay(key,text,endCheer)}
-function playCount(key,text){if(cheering){pend={key,text};return}vsay(key,text)}
+function playCount(key,text,coach){if(cheering){pend={key,text,coach};return}vsay(key,text,coach?()=>speak(coach):null)}
 function vsay(key,text,cb){const k=$('vox').value;if(!sound){if(cb)setTimeout(cb,2500);return}
  if(AUD[k]){try{if(cur){cur.pause();cur=null}const a=new Audio('audio/'+k+'/'+key+'.mp3');cur=a;let fb=false;const back=()=>{if(fb)return;fb=true;speak(text,1,cb)};a.onerror=back;a.onended=()=>{if(cb)cb()};a.play().catch(back);return}catch(e){}}
  speak(text,1,cb)}
@@ -191,11 +205,15 @@ let lt=0,ema=0;
 async function loop(){if(!running)return;const t0=performance.now();let r=null;
  try{r=await infer()}catch(e){$('coach').textContent='분석 오류: '+e.message;running=false;return}
  draw(r);const t=t0/1000;let ev=null;
- if(phase==='play'){if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t)}
+ const present=!!(r&&[5,6,11,12,15,16].every(q=>r.cf[q]>.3));
+ if(phase==='play'){if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t);if(!ev){watch(t,present);liveCue(t)}}
  $('st').textContent=phase!=='play'?'준비 중':r?(mode==='squat'?'스쿼트':'무릎 올리기'):'아이를 찾는 중';
- if(ev){const n=ctr.count,V=VOICE[$('vox').value];$('n').textContent=n;
+ if(ev){const n=ctr.count,V=VOICE[$('vox').value],was=waiting;$('n').textContent=n;lastAct=t;lostSince=null;waiting=false;
+  const parts=ev.msg.split(' · ');const issues=parts.filter(x=>x!=='깊이 좋아요'&&x!=='무릎을 높이 올렸어요');
+  const praise=['좋아요!','잘하고 있어요!','자세가 멋져요!'][n%3];const coachTxt=issues.length?issues.join('. '):(n%3===0?praise:'');
   if(n%CHEER_EVERY===0){const m=V.cheer(n);$('coach').textContent='🎉 '+m;beep();playCheer('cheer'+n,m)}
-  else{$('coach').textContent='#'+ev.n+' '+ev.msg;if($('coachvox').checked)speak(V.count(n)+'. '+ev.msg);else playCount('n'+n,V.count(n))}}
+  else if(was){$('coach').textContent=BACK;beep();playCheer('back',BACK);pend={key:'n'+n,text:V.count(n)}}
+  else{$('coach').textContent='#'+ev.n+' '+ev.msg;playCount('n'+n,V.count(n),$('coachvox').checked?coachTxt:'')}}
  const dt=performance.now()-t0;ema=ema?ema*.8+dt*.2:dt;$('fps').textContent=(1000/ema).toFixed(1)+' fps';
  requestAnimationFrame(loop)}
 $('go').onclick=async()=>{try{if(window.speechSynthesis){loadVoices();const u0=new SpeechSynthesisUtterance(' ');u0.volume=0;speechSynthesis.speak(u0)}}catch(e){}
