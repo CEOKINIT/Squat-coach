@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KINIT 동작 카운터</title>
+<style>
+:root{--bg:#0e1512;--fg:#eaf3ef;--mut:#93a69d;--acc:#4cc9a0;--card:#17211d;--line:#2a3833;--warn:#f0a35a}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 "Noto Sans KR",system-ui,sans-serif;display:flex;flex-direction:column;padding:env(safe-area-inset-top) max(12px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(12px,env(safe-area-inset-left))}
+header{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0}
+h1{font-size:17px;margin:0}
+.seg{display:flex;gap:6px}
+button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-height:40px}
+button[aria-pressed=true]{background:var(--acc);color:#04251b;border-color:var(--acc);font-weight:700}
+button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.stage{position:relative;flex:1;min-height:0;display:flex;justify-content:center;align-items:center;background:#000;border-radius:12px;overflow:hidden}
+.box{position:relative;max-width:100%;max-height:100%}
+video,canvas{display:block;max-width:100%;max-height:100%}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.mir video,.mir canvas{transform:scaleX(-1)}
+.hud{position:absolute;left:12px;top:10px;pointer-events:none}
+.hud b{font-size:84px;line-height:1;color:var(--acc);text-shadow:0 2px 8px #000a;font-variant-numeric:tabular-nums}
+.hud span{display:block;font-size:13px;color:#fff;text-shadow:0 1px 4px #000}
+.coach{position:absolute;left:12px;right:12px;bottom:12px;background:#000b;border-radius:10px;padding:10px 12px;font-size:16px;min-height:44px}
+.start{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;background:#0e1512ee;padding:24px;text-align:center}
+.start button{background:var(--acc);color:#04251b;font-weight:700;font-size:18px;padding:12px 28px}
+.start p{max-width:30em;color:var(--mut);margin:0}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 0;color:var(--mut);font-size:13px}
+.note{color:var(--warn);font-size:12px;padding-bottom:6px}
+[hidden]{display:none!important}
+</style></head><body>
+<header><h1>KINIT 동작 카운터</h1>
+<div class="seg" role="group" aria-label="동작"><button id="m1" aria-pressed="true">스쿼트</button><button id="m2" aria-pressed="false">무릎 올리기</button></div></header>
+<div class="stage"><div class="box" id="box"><video id="v" playsinline muted></video><canvas id="c"></canvas>
+<div class="hud"><b id="n">0</b><span id="st">준비 중</span></div><div class="coach" id="coach">아이 전신이 화면에 들어오게 세워 주세요.</div></div>
+<div class="start" id="start"><h2 style="margin:0">카메라로 동작 세기</h2>
+<p>휴대폰을 고정해 아이 전신이 보이게 세워 주세요. 영상은 기기 밖으로 나가지 않습니다.</p><button id="go">카메라 시작</button><p id="err" style="color:var(--warn)"></p></div></div>
+<div class="bar"><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
+<div class="note">참고용 시제품입니다. 코칭 문구의 기준은 검증 전입니다.</div>
+<script>if("serviceWorker"in navigator&&!self.crossOriginIsolated){navigator.serviceWorker.register("coi-sw.js").then(r=>{if(!navigator.serviceWorker.controller)location.reload()}).catch(()=>{})}</script>
+<script src="ort.wasm.min.js"></script><script src="counter.js"></script>
+<script>
+const $=id=>document.getElementById(id);let S=480;
+let mode='squat',facing='user',ctr,stream,sess,running=false,sound=true,actx;
+const E=[[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[0,5],[0,6]];
+const v=$('v'),c=$('c'),g=c.getContext('2d'),w=document.createElement('canvas');let wg,buf;
+function newCtr(){ctr=new KINIT.Counter(mode);$('n').textContent=0}
+function setMode(m){mode=m;$('m1').setAttribute('aria-pressed',m==='squat');$('m2').setAttribute('aria-pressed',m!=='squat');if(m!=='squat')mode='hang_tuck';newCtr();$('coach').textContent=m==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'}
+$('m1').onclick=()=>setMode('squat');$('m2').onclick=()=>setMode('hang_tuck');
+$('rst').onclick=newCtr;$('snd').onclick=e=>{sound=!sound;e.target.setAttribute('aria-pressed',sound)};
+async function cam(){if(stream)stream.getTracks().forEach(t=>t.stop());
+ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false});
+ v.srcObject=stream;await v.play();await new Promise(r=>v.videoWidth?r():v.onloadedmetadata=r);
+ c.width=v.videoWidth;c.height=v.videoHeight;$('box').style.aspectRatio=v.videoWidth+'/'+v.videoHeight;
+ $('box').style.height='100%';$('box').classList.toggle('mir',facing==='user');newCtr()}
+$('flip').onclick=async()=>{facing=facing==='user'?'environment':'user';try{await cam()}catch(e){$('coach').textContent='카메라 전환 실패: '+e.message}};
+async function load(){ort.env.wasm.wasmPaths='./';ort.env.wasm.numThreads=self.crossOriginIsolated?Math.min(4,navigator.hardwareConcurrency||2):1;
+ S=+$('res').value;w.width=w.height=S;wg=w.getContext('2d',{willReadFrequently:true});buf=new Float32Array(3*S*S);
+ sess=await ort.InferenceSession.create('pose'+S+'.onnx',{executionProviders:['wasm'],graphOptimizationLevel:'all'})}
+function beep(){if(!sound)return;try{actx=actx||new AudioContext();const o=actx.createOscillator(),gn=actx.createGain();o.frequency.value=880;gn.gain.value=.15;o.connect(gn);gn.connect(actx.destination);o.start();o.stop(actx.currentTime+.12)}catch(e){}}
+function speak(t){if(!sound||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ko-KR';speechSynthesis.speak(u)}catch(e){}}
+async function infer(){const vw=v.videoWidth,vh=v.videoHeight,sc=Math.min(S/vw,S/vh),nw=Math.round(vw*sc),nh=Math.round(vh*sc),px=(S-nw)>>1,py=(S-nh)>>1;
+ wg.fillStyle='rgb(114,114,114)';wg.fillRect(0,0,S,S);wg.drawImage(v,px,py,nw,nh);
+ const d=wg.getImageData(0,0,S,S).data,P=S*S;for(let i=0,j=0;i<P;i++,j+=4){buf[i]=d[j]/255;buf[P+i]=d[j+1]/255;buf[2*P+i]=d[j+2]/255}
+ const o=(await sess.run({[sess.inputNames[0]]:new ort.Tensor('float32',buf,[1,3,S,S])}))[sess.outputNames[0]].data,N=o.length/56;
+ let b=-1,bc=.35;for(let i=0;i<N;i++){const s=o[4*N+i];if(s>bc){bc=s;b=i}}
+ if(b<0)return null;const kp=[],cf=[];for(let j=0;j<17;j++){kp.push([(o[(5+j*3)*N+b]-px)/sc,(o[(6+j*3)*N+b]-py)/sc]);cf.push(o[(7+j*3)*N+b])}
+ return {kp,cf}}
+function draw(r){g.clearRect(0,0,c.width,c.height);if(!r)return;const k=Math.max(2,c.width/320);g.lineWidth=k*1.5;g.strokeStyle='#4cc9a0';g.fillStyle='#4cc9a0';
+ for(const[a,b]of E){if(r.cf[a]<.3||r.cf[b]<.3)continue;g.beginPath();g.moveTo(...r.kp[a]);g.lineTo(...r.kp[b]);g.stroke()}
+ r.kp.forEach((p,j)=>{if(r.cf[j]<.3)return;g.beginPath();g.arc(p[0],p[1],k*2,0,7);g.fill()})}
+let lt=0,ema=0;
+async function loop(){if(!running)return;const t0=performance.now();let r=null;
+ try{r=await infer()}catch(e){$('coach').textContent='분석 오류: '+e.message;running=false;return}
+ draw(r);const t=t0/1000;let ev=null;
+ if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t);
+ $('st').textContent=r?(mode==='squat'?'스쿼트':'무릎 올리기'):'아이를 찾는 중';
+ if(ev){$('n').textContent=ctr.count;$('coach').textContent='#'+ev.n+' '+ev.msg;beep();speak(ev.msg)}
+ const dt=performance.now()-t0;ema=ema?ema*.8+dt*.2:dt;$('fps').textContent=(1000/ema).toFixed(1)+' fps';
+ requestAnimationFrame(loop)}
+$('go').onclick=async()=>{$('err').textContent='';$('go').disabled=true;$('go').textContent='불러오는 중…';
+ try{if(!navigator.mediaDevices)throw new Error('보안 주소(https)에서 열어야 카메라를 켤 수 있습니다.');await cam();await load();$('start').hidden=true;
+  try{await navigator.wakeLock?.request('screen')}catch(e){}
+  $('thr').textContent=self.crossOriginIsolated?' · 멀티스레드':' · 단일스레드';newCtr();running=true;loop()}catch(e){$('err').textContent='시작하지 못했습니다: '+e.message;$('go').disabled=false;$('go').textContent='다시 시도'}};
+window.__dbg={get reps(){return ctr&&ctr.reps.map(r=>[r.tb.toFixed(1),r.rmin.toFixed(2),Math.round(r.knee),r.view])},get count(){return ctr&&ctr.count},get fps(){return ema}};
+</script></body></html>
