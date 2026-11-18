@@ -35,7 +35,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 <div class="hud"><b id="n">0</b><span id="st">준비 중</span></div><div class="cd" id="cd" hidden></div><div class="coach" id="coach">아이 전신이 화면에 들어오게 세워 주세요.</div></div>
 <div class="start" id="start"><h2 style="margin:0">카메라로 동작 세기</h2>
 <p>휴대폰을 고정해 아이 전신이 보이게 세워 주세요. 영상은 기기 밖으로 나가지 않습니다.</p><button id="go">카메라 시작</button><p id="err" style="color:var(--warn)"></p></div></div>
-<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label>기기 음성 <select id="dv"><option value="">자동</option></select></label><label><input type="checkbox" id="coachvox" checked> 자세 코칭 말하기</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
+<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label>기기 음성 <select id="dv"><option value="">자동</option></select></label><label><input type="checkbox" id="coachvox" checked> 자세 코칭 말하기</label><label>수준 <select id="lvl"><option value="5,2,3">쉬움 (5회×2세트)</option><option value="10,3,5" selected>보통 (10회×3세트)</option><option value="15,4,5">힘참 (15회×4세트)</option><option value="x">직접 설정</option></select></label><label>세트당 <input type="number" id="reps" min="1" max="50" value="10" style="width:3.4em">회</label><label><input type="number" id="sets" min="1" max="10" value="3" style="width:3em">세트</label><label>호흡 <input type="number" id="brt" min="0" max="10" value="5" style="width:3em">번</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
 <div class="note">참고용 시제품입니다. 코칭 문구의 기준은 검증 전입니다.</div>
 <script>if("serviceWorker"in navigator&&!self.crossOriginIsolated){navigator.serviceWorker.register("coi-sw.js").then(r=>{if(!navigator.serviceWorker.controller)location.reload()}).catch(()=>{})}</script>
 <script src="ort.wasm.min.js"></script><script src="counter.js"></script>
@@ -44,6 +44,24 @@ const $=id=>document.getElementById(id);let S=480;const CHEER_EVERY=10;
 let phase='play',mode='squat',facing='user',ctr,stream,sess,running=false,sound=true,actx;
 const E=[[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[0,5],[0,6]];
 const v=$('v'),c=$('c'),g=c.getContext('2d'),w=document.createElement('canvas');let wg,buf;
+let setK=1,rtok=0;
+const cfg=()=>({reps:Math.max(1,+$('reps').value||10),sets:Math.max(1,+$('sets').value||3),brt:Math.max(0,+$('brt').value||0)});
+function saveCfg(){try{localStorage.setItem('kinit_cfg',JSON.stringify({l:$('lvl').value,r:$('reps').value,s:$('sets').value,b:$('brt').value}))}catch(e){}}
+try{const c=JSON.parse(localStorage.getItem('kinit_cfg')||'null');if(c){$('lvl').value=c.l;$('reps').value=c.r;$('sets').value=c.s;$('brt').value=c.b}}catch(e){}
+$('lvl').onchange=()=>{const v=$('lvl').value;if(v!=='x'){const a=v.split(',');$('reps').value=a[0];$('sets').value=a[1];$('brt').value=a[2]}saveCfg();if(phase==='play')$('n').textContent=(ctr?ctr.count:0)+'/'+cfg().reps};
+['reps','sets','brt'].forEach(i=>$(i).onchange=()=>{$('lvl').value='x';saveCfg();if(phase==='play')$('n').textContent=(ctr?ctr.count:0)+'/'+cfg().reps});
+const SETV={teacher:{set:k=>k+'세트 끝! 정말 잘했어요!',breath:'코로 들이쉬고~ 입으로 내쉬어요~',next:'자, 다음 세트 시작해요!',fin:'오늘 운동을 모두 끝냈어요! 정말 최고예요!'},
+ soldier:{set:k=>k+'세트 완료! 훌륭하다!',breath:'들이쉬고! 내쉬어라!',next:'좋다! 다음 세트 간다!',fin:'오늘 훈련 완료! 너는 최고의 병사다!'},
+ child:{set:k=>k+'세트 끝! 잘했지?',breath:'스읍~ 후~',next:'좋아! 다음 세트 하자!',fin:'와! 오늘 운동 다 했다! 나 최고야!'}};
+const SV=()=>SETV[$('vox').value];
+function breath(i,tok){if(tok!==rtok||phase!=='rest')return;const C=cfg();
+ if(i>C.brt){$('cd').hidden=true;vsay('next',SV().next,()=>{if(tok!==rtok)return;setK++;countdown()});return}
+ $('cd').hidden=false;$('cd').textContent='호흡 '+i+'/'+C.brt;$('coach').textContent='코로 들이쉬고~ 입으로 내쉬어요';vsay('breath',SV().breath);setTimeout(()=>breath(i+1,tok),4800)}
+function setDone(){const C=cfg(),k=setK,fin=k>=C.sets,tok=++rtok;phase=fin?'done':'rest';waiting=false;beep();
+ $('coach').textContent='🎉 '+k+'세트 완료!';cheering=true;pend=null;clearTimeout(cheerTimer);
+ let moved=false;const next=()=>{if(moved||tok!==rtok)return;moved=true;cheering=false;clearTimeout(cheerTimer);
+  if(fin){$('coach').textContent='🏆 오늘 운동 끝! 모두 해냈어요';vsay('fin',SV().fin)}else breath(1,tok)};
+ cheerTimer=setTimeout(next,9000);vsay('set'+k,SV().set(k),next)}
 let lastAct=0,lostSince=null,waiting=false,lastWait=-99,lastCue=-99,cueN=0,IDLE_SEC=12,LOST_SEC=3;
 function resetWatch(){lastAct=performance.now()/1000;lostSince=null;waiting=false;lastWait=-99;lastCue=-99;cueN=0}
 function watch(t,present){if(!present){if(lostSince==null)lostSince=t}else lostSince=null;
@@ -53,12 +71,12 @@ function liveCue(t){if(mode!=='squat'||cheering||waiting||!ctr.live)return;const
  if(L.state==='down'){if(L.view==='side'&&L.lean>50)msg='가슴을 세워요';else if(L.view==='front'&&L.kd<0.75)msg='무릎이 안으로 모여요. 발끝 방향으로!'}
  cueN=msg?cueN+1:0;if(msg&&cueN>=3&&t-lastCue>6){let busy=false;try{busy=speechSynthesis.speaking}catch(e){}if(busy)return;lastCue=t;cueN=0;$('coach').textContent=msg;speak(msg)}}
 const GREET='안녕~ 또 만났네! 오늘도 운동을 시작해볼까?';
-function intro(){phase='intro';$('coach').textContent=GREET;let done=false;const go=()=>{if(done)return;done=true;countdown()};vsay('greet',GREET,go);setTimeout(go,10000)}
-function countdown(){let n=3;$('cd').hidden=false;const t=()=>{if(n>0){$('cd').textContent=n;n--;setTimeout(t,800)}else{$('cd').textContent='시작!';vsay('go','시작!');setTimeout(()=>{$('cd').hidden=true;newCtr();resetWatch();phase='play';$('coach').textContent=mode==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'},800)}};t()}
-function newCtr(){ctr=new KINIT.Counter(mode);$('n').textContent=0}
+function intro(){phase='intro';setK=1;rtok++;$('coach').textContent=GREET;let done=false;const go=()=>{if(done)return;done=true;countdown()};vsay('greet',GREET,go);setTimeout(go,10000)}
+function countdown(){let n=3;$('cd').hidden=false;const t=()=>{if(n>0){$('cd').textContent=n;n--;setTimeout(t,800)}else{$('cd').textContent='시작!';vsay('go','시작!');setTimeout(()=>{$('cd').hidden=true;newCtr();resetWatch();phase='play';$('coach').textContent=mode==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.';$('coach').textContent=mode==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'},800)}};t()}
+function newCtr(){ctr=new KINIT.Counter(mode);$('n').textContent='0/'+cfg().reps}
 function setMode(m){mode=m;$('m1').setAttribute('aria-pressed',m==='squat');$('m2').setAttribute('aria-pressed',m!=='squat');if(m!=='squat')mode='hang_tuck';newCtr();$('coach').textContent=m==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'}
 $('m1').onclick=()=>setMode('squat');$('m2').onclick=()=>setMode('hang_tuck');
-$('rst').onclick=newCtr;$('snd').onclick=e=>{sound=!sound;e.target.setAttribute('aria-pressed',sound)};
+$('rst').onclick=()=>{rtok++;setK=1;$('cd').hidden=true;newCtr();resetWatch();phase='play'};$('snd').onclick=e=>{sound=!sound;e.target.setAttribute('aria-pressed',sound)};
 async function cam(){if(stream)stream.getTracks().forEach(t=>t.stop());
  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false});
  v.srcObject=stream;await v.play();await new Promise(r=>v.videoWidth?r():v.onloadedmetadata=r);
@@ -207,11 +225,12 @@ async function loop(){if(!running)return;const t0=performance.now();let r=null;
  draw(r);const t=t0/1000;let ev=null;
  const present=!!(r&&[5,6,11,12,15,16].every(q=>r.cf[q]>.3));
  if(phase==='play'){if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t);if(!ev){watch(t,present);liveCue(t)}}
- $('st').textContent=phase!=='play'?'준비 중':r?(mode==='squat'?'스쿼트':'무릎 올리기'):'아이를 찾는 중';
- if(ev){const n=ctr.count,V=VOICE[$('vox').value],was=waiting;$('n').textContent=n;lastAct=t;lostSince=null;waiting=false;
+ $('st').textContent=phase==='rest'?'숨 고르는 중':phase==='done'?'완료!':phase!=='play'?'준비 중':setK+'/'+cfg().sets+'세트 · '+(r?(mode==='squat'?'스쿼트':'무릎 올리기'):'아이를 찾는 중');
+ if(ev){const n=ctr.count,V=VOICE[$('vox').value],was=waiting,C=cfg(),total=(setK-1)*C.reps+n;$('n').textContent=n+'/'+C.reps;lastAct=t;lostSince=null;waiting=false;
   const parts=ev.msg.split(' · ');const issues=parts.filter(x=>x!=='깊이 좋아요'&&x!=='무릎을 높이 올렸어요');
   const praise=['좋아요!','잘하고 있어요!','자세가 멋져요!'][n%3];const coachTxt=issues.length?issues.join('. '):(n%3===0?praise:'');
-  if(n%CHEER_EVERY===0){const m=V.cheer(n);$('coach').textContent='🎉 '+m;beep();playCheer('cheer'+n,m)}
+  if(n>=C.reps){setDone()}
+  else if(total%CHEER_EVERY===0){const m=V.cheer(total);$('coach').textContent='🎉 '+m;beep();playCheer('cheer'+total,m)}
   else if(was){$('coach').textContent=BACK;beep();playCheer('back',BACK);pend={key:'n'+n,text:V.count(n)}}
   else{$('coach').textContent='#'+ev.n+' '+ev.msg;playCount('n'+n,V.count(n),$('coachvox').checked?coachTxt:'')}}
  const dt=performance.now()-t0;ema=ema?ema*.8+dt*.2:dt;$('fps').textContent=(1000/ema).toFixed(1)+' fps';
