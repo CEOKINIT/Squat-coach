@@ -66,20 +66,26 @@ function setDone(){const C=cfg(),k=setK,fin=k>=C.sets,tok=++rtok;phase=fin?'done
  cheerTimer=setTimeout(next,9000);vsay('set'+k,SV().set(k),next)}
 let lastAct=0,lostSince=null,waiting=false,lastWait=-99,lastCue=-99,cueN=0,IDLE_SEC=12,LOST_SEC=3;
 const WAIT='선생님이 기다리고 있어. 같이 운동하자.',WAIT2='선생님 기다려~',AGAIN='다시 잘 할 수 있지?',BACK='역시 잘할 줄 알았어.';
-let wstage=0,wt=0,waitLost=false,backPending=false,wtok=0;
-function resetWatch(){lastAct=performance.now()/1000;lostSince=null;waiting=false;lastWait=-99;lastCue=-99;cueN=0;wstage=0;backPending=false;wtok++}
-function wcount(i,tok){if(tok!==wtok||!waiting)return;const V=VOICE[$('vox').value];$('coach').textContent=String(i);vsay('n'+i,V.count(i));if(i>1)setTimeout(()=>wcount(i-1,tok),1000)}
+let waitSt=null,wstage=0,wt=0,waitLost=false,backPending=false,wtok=0;
+function resetWatch(){badN=0;goodN=0;lastAct=performance.now()/1000;lostSince=null;waiting=false;lastWait=-99;lastCue=-99;cueN=0;wstage=0;backPending=false;wtok++}
+const COUNT5='오초셀거야~. 오, 사, 삼, 이, 일~!';
+function wsay(key,text,nx){const tok=wtok;wstage=0;let d=0;const f=()=>{if(d||tok!==wtok)return;d=1;wt=performance.now()/1000;wstage=nx};$('coach').textContent=text;vsay(key,text,f);setTimeout(f,12000)}
 function watch(t,present){if(!present){if(lostSince==null)lostSince=t}else lostSince=null;
  if(waiting){
-  const back=present&&(waitLost||(ctr.live&&ctr.live.state==='down'));
+  const back=present&&(waitLost||(ctr.live&&ctr.live.state!==waitSt));
   if(back){waiting=false;wstage=0;wtok++;backPending=true;lastAct=t;$('coach').textContent=AGAIN;playCheer('again',AGAIN);return}
   if(cheering)return;
-  if(wstage===1&&t-wt>=4){wstage=2;wt=t;$('coach').textContent=WAIT2;vsay('wait2',WAIT2)}
-  else if(wstage===2&&t-wt>=4){wstage=3;wt=t;wcount(5,wtok)}
-  else if(wstage===3&&t-wt>=10){wstage=1;wt=t;$('coach').textContent=WAIT;playCheer('wait',WAIT)}
+  if(wstage===1&&t-wt>=4)wsay('wait2',WAIT2,2);
+  else if(wstage===2&&t-wt>=4)wsay('count5',COUNT5,3);
+  else if(wstage===3&&t-wt>=4)wsay('wait',WAIT,1);
   return}
  const lost=lostSince!=null&&t-lostSince>=LOST_SEC,idle=present&&t-lastAct>=IDLE_SEC;
- if((lost||idle)&&!cheering){waiting=true;waitLost=lost;wstage=1;wt=t;wtok++;$('coach').textContent=WAIT;playCheer('wait',WAIT)}}
+ if((lost||idle)&&!cheering){waiting=true;waitLost=lost;waitSt=ctr.live?ctr.live.state:null;wtok++;wsay('wait',WAIT,1)}}
+let badN=0,goodN=0;
+function coachSched(issues){const depth=issues.find(x=>/앉|얕/.test(x));
+ if(issues.length){goodN=0;const pos=badN%4;badN++;if(pos===3)return '';
+  if(mode==='squat'&&depth)return ['조금 더 앉아볼까요','얕아요','조금만 더~!'][pos];return issues.join('. ')}
+ badN=0;const pos=goodN%5;goodN++;return pos===0?'지금 잘했어!':pos===1?'좋아, 잘하고 있어!':''}
 function liveCue(t){if(mode!=='squat'||cheering||waiting||!ctr.live)return;const L=ctr.live;let msg=null;
  if(L.state==='down'){if(L.view==='side'&&L.lean>50)msg='가슴을 세워요';else if(L.view==='front'&&L.kd<0.75)msg='무릎이 안으로 모여요. 발끝 방향으로!'}
  cueN=msg?cueN+1:0;if(msg&&cueN>=3&&t-lastCue>6){let busy=false;try{busy=speechSynthesis.speaking}catch(e){}if(busy)return;lastCue=t;cueN=0;$('coach').textContent=msg;speak(msg)}}
@@ -239,11 +245,11 @@ async function loop(){if(!running)return;const t0=performance.now();let r=null;
  try{r=await infer()}catch(e){$('coach').textContent='분석 오류: '+e.message;running=false;return}
  draw(r);const t=t0/1000;let ev=null;
  const present=!!(r&&[5,6,11,12,15,16].every(q=>r.cf[q]>.3));
- if(phase==='play'){if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t);if(!ev){watch(t,present);liveCue(t)}}
+ if(phase==='play'){if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t);if(!ev){watch(t,present)}}
  $('st').textContent=phase==='rest'?'숨 고르는 중':phase==='done'?'완료!':phase!=='play'?'준비 중':(cfg().inf?'슈퍼맨 모드 · ':setK+'/'+cfg().sets+'세트 · ')+(r?(mode==='squat'?'스쿼트':'무릎 올리기'):'아이를 찾는 중');
- if(ev){const n=ctr.count,V=VOICE[$('vox').value],was=backPending,C=cfg(),total=(setK-1)*C.reps+n;$('n').textContent=nTxt(n);lastAct=t;lostSince=null;waiting=false;wtok++;backPending=false;
+ if(ev){const n=ctr.count,V=VOICE[$('vox').value],was=backPending,C=cfg(),total=(C.inf?0:(setK-1)*C.reps)+n;$('n').textContent=nTxt(n);lastAct=t;lostSince=null;waiting=false;wtok++;backPending=false;
   const parts=ev.msg.split(' · ');const issues=parts.filter(x=>x!=='깊이 좋아요'&&x!=='무릎을 높이 올렸어요');
-  const praise=['좋아요!','잘하고 있어요!','자세가 멋져요!'][n%3];const coachTxt=issues.length?issues.join('. '):(n%3===0?praise:'');
+  const coachTxt=coachSched(issues);
   if(n>=C.reps){setDone()}
   else if(total%CHEER_EVERY===0){const m=V.cheer(total);$('coach').textContent='🎉 '+m;beep();playCheer('cheer'+total,m)}
   else if(was){$('coach').textContent=BACK;beep();playCheer('back',BACK);pend={key:'n'+n,text:V.count(n)}}
