@@ -73,6 +73,10 @@ const VOICE={
  child:{pitch:1.45,rate:1.05,count:n=>nat(n),cheer:n=>'우와, 벌써 '+natCnt(n)+' 개나 했어!',hello:'안녕! 나랑 같이 운동하자!'}};
 let cur=null;const AUD={};
 async function probe(){const k=$('vox').value;if(AUD[k]!==undefined)return;AUD[k]=false;try{const r=await fetch('audio/'+k+'/greet.mp3',{method:'HEAD'});AUD[k]=r.ok}catch(e){}}
+let cheering=false,pend=null,cheerTimer=0;
+function endCheer(){if(!cheering)return;cheering=false;clearTimeout(cheerTimer);if(pend){const q=pend;pend=null;vsay(q.key,q.text)}}
+function playCheer(key,text){cheering=true;pend=null;clearTimeout(cheerTimer);cheerTimer=setTimeout(endCheer,9000);vsay(key,text,endCheer)}
+function playCount(key,text){if(cheering){pend={key,text};return}vsay(key,text)}
 function vsay(key,text,cb){const k=$('vox').value;if(!sound){if(cb)setTimeout(cb,2500);return}
  if(AUD[k]){try{if(cur){cur.pause();cur=null}const a=new Audio('audio/'+k+'/'+key+'.mp3');cur=a;let fb=false;const back=()=>{if(fb)return;fb=true;speak(text,1,cb)};a.onerror=back;a.onended=()=>{if(cb)cb()};a.play().catch(back);return}catch(e){}}
  speak(text,1,cb)}
@@ -190,8 +194,8 @@ async function loop(){if(!running)return;const t0=performance.now();let r=null;
  if(phase==='play'){if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t)}
  $('st').textContent=phase!=='play'?'준비 중':r?(mode==='squat'?'스쿼트':'무릎 올리기'):'아이를 찾는 중';
  if(ev){const n=ctr.count,V=VOICE[$('vox').value];$('n').textContent=n;
-  if(n%CHEER_EVERY===0){const m=V.cheer(n);$('coach').textContent='🎉 '+m;beep();vsay('cheer'+n,m)}
-  else{$('coach').textContent='#'+ev.n+' '+ev.msg;if($('coachvox').checked)speak(V.count(n)+'. '+ev.msg);else vsay('n'+n,V.count(n))}}
+  if(n%CHEER_EVERY===0){const m=V.cheer(n);$('coach').textContent='🎉 '+m;beep();playCheer('cheer'+n,m)}
+  else{$('coach').textContent='#'+ev.n+' '+ev.msg;if($('coachvox').checked)speak(V.count(n)+'. '+ev.msg);else playCount('n'+n,V.count(n))}}
  const dt=performance.now()-t0;ema=ema?ema*.8+dt*.2:dt;$('fps').textContent=(1000/ema).toFixed(1)+' fps';
  requestAnimationFrame(loop)}
 $('go').onclick=async()=>{try{if(window.speechSynthesis){loadVoices();const u0=new SpeechSynthesisUtterance(' ');u0.volume=0;speechSynthesis.speak(u0)}}catch(e){}
