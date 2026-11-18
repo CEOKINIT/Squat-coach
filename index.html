@@ -35,7 +35,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 <div class="hud"><b id="n">0</b><span id="st">준비 중</span></div><div class="cd" id="cd" hidden></div><div class="coach" id="coach">아이 전신이 화면에 들어오게 세워 주세요.</div></div>
 <div class="start" id="start"><h2 style="margin:0">카메라로 동작 세기</h2>
 <p>휴대폰을 고정해 아이 전신이 보이게 세워 주세요. 영상은 기기 밖으로 나가지 않습니다.</p><button id="go">카메라 시작</button><p id="err" style="color:var(--warn)"></p></div></div>
-<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label><input type="checkbox" id="coachvox"> 코칭도 읽기</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
+<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label>기기 음성 <select id="dv"><option value="">자동</option></select></label><label><input type="checkbox" id="coachvox"> 코칭도 읽기</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
 <div class="note">참고용 시제품입니다. 코칭 문구의 기준은 검증 전입니다.</div>
 <script>if("serviceWorker"in navigator&&!self.crossOriginIsolated){navigator.serviceWorker.register("coi-sw.js").then(r=>{if(!navigator.serviceWorker.controller)location.reload()}).catch(()=>{})}</script>
 <script src="ort.wasm.min.js"></script><script src="counter.js"></script>
@@ -45,8 +45,8 @@ let phase='play',mode='squat',facing='user',ctr,stream,sess,running=false,sound=
 const E=[[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[0,5],[0,6]];
 const v=$('v'),c=$('c'),g=c.getContext('2d'),w=document.createElement('canvas');let wg,buf;
 const GREET='안녕~ 또 만났네! 오늘도 운동을 시작해볼까?';
-function intro(){phase='intro';$('coach').textContent=GREET;let done=false;const go=()=>{if(done)return;done=true;countdown()};speak(GREET,1,go);setTimeout(go,10000)}
-function countdown(){let n=3;$('cd').hidden=false;const t=()=>{if(n>0){$('cd').textContent=n;n--;setTimeout(t,800)}else{$('cd').textContent='시작!';speak('시작!');setTimeout(()=>{$('cd').hidden=true;newCtr();phase='play';$('coach').textContent=mode==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'},800)}};t()}
+function intro(){phase='intro';$('coach').textContent=GREET;let done=false;const go=()=>{if(done)return;done=true;countdown()};vsay('greet',GREET,go);setTimeout(go,10000)}
+function countdown(){let n=3;$('cd').hidden=false;const t=()=>{if(n>0){$('cd').textContent=n;n--;setTimeout(t,800)}else{$('cd').textContent='시작!';vsay('go','시작!');setTimeout(()=>{$('cd').hidden=true;newCtr();phase='play';$('coach').textContent=mode==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'},800)}};t()}
 function newCtr(){ctr=new KINIT.Counter(mode);$('n').textContent=0}
 function setMode(m){mode=m;$('m1').setAttribute('aria-pressed',m==='squat');$('m2').setAttribute('aria-pressed',m!=='squat');if(m!=='squat')mode='hang_tuck';newCtr();$('coach').textContent=m==='squat'?'서서 시작해 주세요.':'철봉·링에 매달려 시작해 주세요.'}
 $('m1').onclick=()=>setMode('squat');$('m2').onclick=()=>setMode('hang_tuck');
@@ -56,8 +56,8 @@ async function cam(){if(stream)stream.getTracks().forEach(t=>t.stop());
  v.srcObject=stream;await v.play();await new Promise(r=>v.videoWidth?r():v.onloadedmetadata=r);
  c.width=v.videoWidth;c.height=v.videoHeight;if($('bg'))makeBg($('bg').value);$('box').style.aspectRatio=v.videoWidth+'/'+v.videoHeight;
  $('box').style.height='100%';$('box').classList.toggle('mir',facing==='user');newCtr()}
-$('vtest').onclick=()=>{sound=true;$('snd').setAttribute('aria-pressed','true');speak(VOICE[$('vox').value].count(3))};
-$('vox').onchange=()=>speak(VOICE[$('vox').value].hello);
+$('vtest').onclick=()=>{sound=true;$('snd').setAttribute('aria-pressed','true');probe().then(()=>vsay('n3',VOICE[$('vox').value].count(3)))};
+$('vox').onchange=()=>{probe().then(()=>vsay('hello',VOICE[$('vox').value].hello))};$('dv').onchange=()=>speak(VOICE[$('vox').value].hello);
 $('bg').onchange=()=>makeBg($('bg').value);
 $('flip').onclick=async()=>{facing=facing==='user'?'environment':'user';try{await cam()}catch(e){$('coach').textContent='카메라 전환 실패: '+e.message}};
 async function load(){ort.env.wasm.wasmPaths='./';ort.env.wasm.numThreads=self.crossOriginIsolated?Math.min(4,navigator.hardwareConcurrency||2):1;
@@ -68,14 +68,19 @@ const ONES=['','하나','둘','셋','넷','다섯','여섯','일곱','여덟','�
 function nat(n){if(n<1||n>99)return String(n);return TENS[Math.floor(n/10)]+ONES[n%10]}
 function natCnt(n){if(n<1||n>99)return String(n);let t=nat(n);if(n===20)return '스무';return t.replace(/하나$/,'한').replace(/둘$/,'두').replace(/셋$/,'세').replace(/넷$/,'네')}
 const VOICE={
- teacher:{pitch:1.35,rate:.95,count:n=>nat(n),cheer:n=>'우와! 벌써 '+natCnt(n)+' 개나 했어요! 정말 잘했어요!',hello:'안녕! 선생님이랑 같이 운동해요!'},
- soldier:{pitch:.5,rate:1.2,count:n=>nat(n)+'!',cheer:n=>'좋았다! 벌써 '+natCnt(n)+' 개나 해냈다! 대단하다!',hello:'좋아! 지금부터 훈련을 시작한다!'},
- child:{pitch:1.9,rate:1.1,count:n=>nat(n),cheer:n=>'우와! 벌써 '+natCnt(n)+' 개나 했어!',hello:'안녕! 나랑 같이 운동하자!'}};
-function pickVoice(k){try{const vs=speechSynthesis.getVoices().filter(v=>/^ko/i.test(v.lang));if(!vs.length)return null;
+ teacher:{pitch:1.15,rate:.92,count:n=>nat(n),cheer:n=>'우와, 벌써 '+natCnt(n)+' 개나 했어요! 정말 잘했어요!',hello:'안녕! 선생님이랑 같이 운동해요!'},
+ soldier:{pitch:.85,rate:1.08,count:n=>nat(n)+'!',cheer:n=>'좋았다! 벌써 '+natCnt(n)+' 개나 해냈다! 대단하다!',hello:'좋아! 지금부터 훈련을 시작한다!'},
+ child:{pitch:1.45,rate:1.05,count:n=>nat(n),cheer:n=>'우와, 벌써 '+natCnt(n)+' 개나 했어!',hello:'안녕! 나랑 같이 운동하자!'}};
+let cur=null;const AUD={};
+async function probe(){const k=$('vox').value;if(AUD[k]!==undefined)return;AUD[k]=false;try{const r=await fetch('audio/'+k+'/greet.mp3',{method:'HEAD'});AUD[k]=r.ok}catch(e){}}
+function vsay(key,text,cb){const k=$('vox').value;if(!sound){if(cb)setTimeout(cb,2500);return}
+ if(AUD[k]){try{if(cur){cur.pause();cur=null}const a=new Audio('audio/'+k+'/'+key+'.mp3');cur=a;let fb=false;const back=()=>{if(fb)return;fb=true;speak(text,1,cb)};a.onerror=back;a.onended=()=>{if(cb)cb()};a.play().catch(back);return}catch(e){}}
+ speak(text,1,cb)}
+function pickVoice(k){try{const dv=$('dv')&&$('dv').value;if(dv){const f=speechSynthesis.getVoices().find(v=>v.name===dv);if(f)return f}const vs=speechSynthesis.getVoices().filter(v=>/^ko/i.test(v.lang));if(!vs.length)return null;
  const fem=vs.find(v=>/female|yuna|sunhi|heami|seoyeon|여/i.test(v.name)),male=vs.find(v=>/\bmale\b|injoon|minho|남/i.test(v.name)&&!/female/i.test(v.name));
  return k==='soldier'?(male||vs[vs.length-1]):(fem||vs[0])}catch(e){return null}}
 const keep=[];let vcount=0;
-function loadVoices(){try{vcount=speechSynthesis.getVoices().filter(v=>/^ko/i.test(v.lang)).length}catch(e){}}
+function loadVoices(){try{const ko=speechSynthesis.getVoices().filter(v=>/^ko/i.test(v.lang));vcount=ko.length;const sel=$('dv');if(sel&&sel.options.length-1!==ko.length){const cur0=sel.value;sel.innerHTML='<option value="">자동</option>'+ko.map(v=>'<option>'+v.name+'</option>').join('');sel.value=cur0}}catch(e){}}
 try{loadVoices();speechSynthesis.addEventListener('voiceschanged',loadVoices)}catch(e){}
 function say(t,vol,cb){try{const k=$('vox').value,V=VOICE[k],u=new SpeechSynthesisUtterance(t);u.lang='ko-KR';u.pitch=V.pitch;u.rate=V.rate;u.volume=vol==null?1:vol;
  const vv=pickVoice(k);if(vv)u.voice=vv;keep.push(u);
@@ -185,14 +190,14 @@ async function loop(){if(!running)return;const t0=performance.now();let r=null;
  if(phase==='play'){if(r)ev=ctr.feed(r.kp,r.cf,t);else ctr.feed(null,null,t)}
  $('st').textContent=phase!=='play'?'준비 중':r?(mode==='squat'?'스쿼트':'무릎 올리기'):'아이를 찾는 중';
  if(ev){const n=ctr.count,V=VOICE[$('vox').value];$('n').textContent=n;
-  if(n%CHEER_EVERY===0){const m=V.cheer(n);$('coach').textContent='🎉 '+m;beep();speak(m)}
-  else{$('coach').textContent='#'+ev.n+' '+ev.msg;if($('coachvox').checked)speak(V.count(n)+'. '+ev.msg);else speak(V.count(n))}}
+  if(n%CHEER_EVERY===0){const m=V.cheer(n);$('coach').textContent='🎉 '+m;beep();vsay('cheer'+n,m)}
+  else{$('coach').textContent='#'+ev.n+' '+ev.msg;if($('coachvox').checked)speak(V.count(n)+'. '+ev.msg);else vsay('n'+n,V.count(n))}}
  const dt=performance.now()-t0;ema=ema?ema*.8+dt*.2:dt;$('fps').textContent=(1000/ema).toFixed(1)+' fps';
  requestAnimationFrame(loop)}
 $('go').onclick=async()=>{try{if(window.speechSynthesis){loadVoices();const u0=new SpeechSynthesisUtterance(' ');u0.volume=0;speechSynthesis.speak(u0)}}catch(e){}
  $('err').textContent='';$('go').disabled=true;$('go').textContent='불러오는 중…';
  try{if(!navigator.mediaDevices)throw new Error('보안 주소(https)에서 열어야 카메라를 켤 수 있습니다.');await cam();await load();$('start').hidden=true;
   try{await navigator.wakeLock?.request('screen')}catch(e){}
-  $('thr').textContent=(self.crossOriginIsolated?' · 멀티스레드':' · 단일스레드')+' · 한국어 음성 '+vcount+'개';newCtr();running=true;loop();intro()}catch(e){$('err').textContent='시작하지 못했습니다: '+e.message;$('go').disabled=false;$('go').textContent='다시 시도'}};
+  $('thr').textContent=(self.crossOriginIsolated?' · 멀티스레드':' · 단일스레드')+' · 한국어 음성 '+vcount+'개';await probe();newCtr();running=true;loop();intro()}catch(e){$('err').textContent='시작하지 못했습니다: '+e.message;$('go').disabled=false;$('go').textContent='다시 시도'}};
 window.__dbg={get reps(){return ctr&&ctr.reps.map(r=>[r.tb.toFixed(1),r.rmin.toFixed(2),Math.round(r.knee),r.view])},get count(){return ctr&&ctr.count},get fps(){return ema}};
 </script></body></html>
