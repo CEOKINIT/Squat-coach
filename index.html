@@ -35,7 +35,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 <div class="hud"><b id="n">0</b><span id="st">준비 중</span></div><div class="cd" id="cd" hidden></div><div class="coach" id="coach">아이 전신이 화면에 들어오게 세워 주세요.</div></div>
 <div class="start" id="start"><h2 style="margin:0">카메라로 동작 세기</h2>
 <p>휴대폰을 고정해 아이 전신이 보이게 세워 주세요. 영상은 기기 밖으로 나가지 않습니다.</p><button id="go">카메라 시작</button><p id="err" style="color:var(--warn)"></p></div></div>
-<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label>기기 음성 <select id="dv"><option value="">자동</option></select></label><label><input type="checkbox" id="coachvox" checked> 자세 코칭 말하기</label><label>수준 <select id="lvl"><option value="5,2,3">쉬움 (5회×2세트)</option><option value="10,3,5" selected>보통 (10회×3세트)</option><option value="15,4,5">힘참 (15회×4세트)</option><option value="inf">슈퍼맨 모드 (무제한)</option><option value="x">직접 설정</option></select></label><label>세트당 <input type="number" id="reps" min="1" max="50" value="10" style="width:3.4em">회</label><label><input type="number" id="sets" min="1" max="10" value="3" style="width:3em">세트</label><label>호흡 <input type="number" id="brt" min="0" max="10" value="5" style="width:3em">번</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
+<div class="bar"><label>캐릭터 <select id="sty"><option value="bear" selected>곰인형</option><option value="wood">나무 꼭두각시</option><option value="robot">로봇</option><option value="bone">뼈대</option></select></label><label>목소리 <select id="vox"><option value="teacher" selected>유치원 선생님</option><option value="soldier">씩씩한 군인</option><option value="child">귀여운 어린이</option></select></label><label>기기 음성 <select id="dv"><option value="">자동</option></select></label><label><input type="checkbox" id="coachvox" checked> 자세 코칭 말하기</label><label>수준 <select id="lvl"><option value="5,2,3">쉬움 (5회×2세트)</option><option value="10,3,5" selected>보통 (10회×3세트)</option><option value="15,4,5">힘참 (15회×4세트)</option><option value="inf">슈퍼맨 모드 (무제한)</option><option value="x">직접 설정</option></select></label><label>세트당 <input type="number" id="reps" min="1" max="50" value="10" style="width:3.4em">회</label><label><input type="number" id="sets" min="1" max="10" value="3" style="width:3em">세트</label><label>호흡 <input type="number" id="brt" min="0" max="10" value="5" style="width:3em">번</label><label>배경 <select id="bg"><option value="cam" selected>카메라</option><option value="forest">숲</option><option value="space">우주</option><option value="park">놀이터</option></select></label><label>분석 해상도 <select id="res"><option value="480" selected>정확도 우선</option><option value="320">속도 우선 (사람 추적)</option></select></label><button id="flip">카메라 전환</button><button id="rst">횟수 초기화</button><button id="vtest">음성 테스트</button><button id="snd" aria-pressed="true">소리</button><span id="fps"></span><span id="thr"></span></div>
 <div class="note">참고용 시제품입니다. 코칭 문구의 기준은 검증 전입니다.</div>
 <script>if("serviceWorker"in navigator&&!self.crossOriginIsolated){navigator.serviceWorker.register("coi-sw.js").then(r=>{if(!navigator.serviceWorker.controller)location.reload()}).catch(()=>{})}</script>
 <script src="ort.wasm.min.js"></script><script src="counter.js"></script>
@@ -145,13 +145,23 @@ function say(t,vol,cb){try{const k=$('vox').value,V=VOICE[k],u=new SpeechSynthes
  speechSynthesis.speak(u)}catch(e){$('thr').textContent=' · 음성 오류: '+e.message}}
 function speak(t,vol,cb){if(!sound||!t){if(cb)setTimeout(cb,2500);return}if(!window.speechSynthesis){$('thr').textContent=' · 이 브라우저는 음성을 지원하지 않습니다';if(cb)setTimeout(cb,2500);return}
  try{if(speechSynthesis.speaking||speechSynthesis.pending){speechSynthesis.cancel();setTimeout(()=>say(t,vol,cb),120)}else say(t,vol,cb)}catch(e){if(cb)setTimeout(cb,2500)}}
-async function infer(){const vw=v.videoWidth,vh=v.videoHeight,sc=Math.min(S/vw,S/vh),nw=Math.round(vw*sc),nh=Math.round(vh*sc),px=(S-nw)>>1,py=(S-nh)>>1;
- wg.fillStyle='rgb(114,114,114)';wg.fillRect(0,0,S,S);wg.drawImage(v,px,py,nw,nh);
+let lastDet=null;
+async function pass(x0,y0,cw,ch){const vw=v.videoWidth,vh=v.videoHeight,sc=Math.min(S/cw,S/ch),nw=Math.round(cw*sc),nh=Math.round(ch*sc),px=(S-nw)>>1,py=(S-nh)>>1;
+ wg.fillStyle='rgb(114,114,114)';wg.fillRect(0,0,S,S);
+ const xs=Math.max(0,x0),ys=Math.max(0,y0),xe=Math.min(vw,x0+cw),ye=Math.min(vh,y0+ch);
+ if(xe>xs&&ye>ys)wg.drawImage(v,xs,ys,xe-xs,ye-ys,px+(xs-x0)*sc,py+(ys-y0)*sc,(xe-xs)*sc,(ye-ys)*sc);
  const d=wg.getImageData(0,0,S,S).data,P=S*S;for(let i=0,j=0;i<P;i++,j+=4){buf[i]=d[j]/255;buf[P+i]=d[j+1]/255;buf[2*P+i]=d[j+2]/255}
  const o=(await sess.run({[sess.inputNames[0]]:new ort.Tensor('float32',buf,[1,3,S,S])}))[sess.outputNames[0]].data,N=o.length/56;
  let b=-1,bc=.35;for(let i=0;i<N;i++){const s=o[4*N+i];if(s>bc){bc=s;b=i}}
- if(b<0)return null;const kp=[],cf=[];for(let j=0;j<17;j++){kp.push([(o[(5+j*3)*N+b]-px)/sc,(o[(6+j*3)*N+b]-py)/sc]);cf.push(o[(7+j*3)*N+b])}
+ if(b<0)return null;const kp=[],cf=[];for(let j=0;j<17;j++){kp.push([(o[(5+j*3)*N+b]-px)/sc+x0,(o[(6+j*3)*N+b]-py)/sc+y0]);cf.push(o[(7+j*3)*N+b])}
  return {kp,cf}}
+function roiOf(r){const pts=r.kp.filter((p,i)=>r.cf[i]>.3);if(pts.length<4)return null;
+ let a=1e9,b=1e9,c=-1e9,d=-1e9;pts.forEach(p=>{a=Math.min(a,p[0]);b=Math.min(b,p[1]);c=Math.max(c,p[0]);d=Math.max(d,p[1])});
+ const m=Math.min(v.videoWidth,v.videoHeight),sz=Math.max(Math.max(c-a,d-b)*1.5,m*.28);return [Math.round((a+c)/2-sz/2),Math.round((b+d)/2-sz/2),Math.round(sz),Math.round(sz)]}
+async function infer(){const vw=v.videoWidth,vh=v.videoHeight;let r=null;
+ if(S<=320&&lastDet){const R=roiOf(lastDet);if(R)r=await pass(...R)}
+ if(!r)r=await pass(0,0,vw,vh);
+ lastDet=r;return r}
 const TH={
  wood:{skin:'#e3a762',edge:'#6b3f1d',joint:'#f6d7a8',cloth:'#3fb6a8',acc:'#d9822b'},
  robot:{skin:'#8fe0cf',edge:'#2b5f58',joint:'#ffffff',cloth:'#7fd6c2',acc:'#ffb84d'},
